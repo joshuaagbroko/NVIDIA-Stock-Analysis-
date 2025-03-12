@@ -1,0 +1,303 @@
+---
+title: "NVIDIA Stock Analysis"
+author: "Joshua Agbroko"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+# Overview
+
+This project analyzes NVIDIA's stock performance and compares it to the S&P 500
+benchmark using R and Python(reticulate). The objective is to determine whether
+an equally weighted, long-only trading strategy based on NVIDIA's relative 
+performance can outperform the S&P 500 index. 
+
+```{r message=FALSE, warning=FALSE}
+# Loading necessaru libraries
+library(tidyverse)
+library(httr)
+library(jsonlite)
+library(ggplot2)
+library(lubridate)
+library(TTR)
+library(reticulate)
+```
+
+```{r source Python script }
+# Sourcing python script
+source_python("fetch_data.py")
+
+# Fetch NVIDIA (NVDA) stock data
+nvda_data <- py$get_stock_data("NVDA")
+
+# Converting to R dataframe
+nvda_df <- as.tibble(nvda_data)
+
+# View first few rows
+print(head(nvda_df))
+
+```
+
+```{r}
+
+```
+
+# Exploratory Data Analysis On NVIDIA Stock Data
+
+
+```{r Data Validation}
+# Check structure 
+print(str(nvda_df))
+
+nvda_df$Date <- as.Date(nvda_df$Date)
+# Check for missing Values
+print(sum(is.na(nvda_df)))
+
+
+```
+
+```{r}
+# Summary statistics
+summary(nvda_df)
+```
+### Stock Price Trends
+```{r}
+# Line Chart of closing prices
+ggplot(nvda_df, aes(x = Date, y = close)) +
+  geom_line(color = "blue", size = 1) +
+  labs(title = "NVIDIA Stock Price Trend (last 5 Years)",
+       x = "Date", y = "Closing Price(USD)") +
+  theme_minimal()
+```
+
+This shows how NVIDIA's stock has performed over time. We can see a rapid rise in 
+closing stock price from 2023 till it eventually stabilizes in early 2025. This should
+primarily be due to the immense demand for its high-performance AI chips, which 
+are considered to be the industry leader, with its latest Blackwell AI architecture
+seeing particularly strong demand and fueling investor confidence in the company's
+future potential.
+
+
+### Daily Returns
+This calculates percentage changes in price daily.
+
+```{r Calculaing daily returns}
+nvda_df <- nvda_df %>%
+  arrange(Date) %>%
+  mutate(daily_return = (close / lag(close)) - 1)
+
+print(summary(nvda_df$daily_return))
+
+head(nvda_df)
+
+```
+
+
+### Volatility Analysis
+```{r Histogram of Returns}
+ggplot(nvda_df, aes(x = daily_return)) +
+  geom_histogram(binwidth = 0.01, fill = "blue",
+                 color = "black", alpha = 0.7) +
+  labs(title = "Distribution of NVIDIA Daily Returns",
+       x = "Daily Return", y = "Frequency") +
+  theme_minimal()
+```
+
+This shows return distribution, helping us understand volatility. NVIDIA's returns
+appear to be normally distributed suggesting that stock is volatile( higher risk, 
+but also potential for higher returns)
+
+
+### Comparison with the S&P 500
+ The S&P 500 (Standard & Poor's 500) is a stock market index benchmark that is used
+ to track the performance of 500 large U.S. companies across various sectors. It is 
+ considered a good representation of the U.S. economy and overall stock market
+ performance.
+
+```{r}
+# Fetching S&P  500 ETF data 
+sp500_data <- py$get_stock_data("SPY")
+
+# converting to R dataframe
+sp500_df <- as.tibble(sp500_data)
+sp500_df$Date <- as.Date(sp500_df$Date)
+  
+print(head(sp500_df))
+```
+
+```{r Preparing NVIDIA and S&P 500 for comparison}
+# Calc. S&P 500 daily returns
+sp500_df <- sp500_df %>%
+  arrange(Date) %>%
+  mutate(daily_return = (close / lag(close)) - 1)
+
+# merging both stock datasets on Date
+stock_data <- left_join(nvda_df, sp500_df, by = "Date", 
+                        suffix = c("_nvda", "_sp500"))
+
+# Rem. NA values
+stock_data <- na.omit(stock_data)
+
+stock_data$Date <- as.Date(stock_data$Date)
+
+# Summary of returns
+summary(stock_data$daily_return_nvda)
+summary(stock_data$daily_return_sp500)
+
+```
+
+### Comparing Performance with a T-Test
+
+A t-test checks if NVIDIA's daily returns are significantly different from 
+S&P 500's.
+```{r Perform t-test}
+t_test_result <- t.test(stock_data$daily_return_nvda,
+                        stock_data$daily_return_sp500,
+                        alternative = "greater")
+
+print(t_test_result)
+
+```
+Since p < 0.05, we reject the null hypothesis, meaning NVIDIA's mean returns are
+significantly greater than the S&P 500's. The confidence interval suggests that
+even in the worst-case scenario, NVIDIA still uotperforms the S&P 500 on average.
+
+
+```{r Visualizing Performance}
+# line plot of NVIDIA vs S&P 500 Returns
+ggplot(stock_data, aes(x = Date)) +
+  geom_line(aes(y = daily_return_nvda, color = "NVIDIA"), size = 1) +
+  geom_line(aes(y = daily_return_sp500, color = "S&P 500"), size = 1) +
+  labs(title = "NVIDIA vs S&P 500 Daily Returns",
+       x = "Date", y = "Daily Return") +
+  scale_color_manual(values = c("NVIDIA" = "blue", "S&P 500" = "red")) +
+  theme_gray()
+
+```
+
+This visually compares NVIDIA's performance with the market
+
+## Implementating a Simple Trading Strategy
+
+We will
+- Define a trading rule: invest i NVIDIA only if its return is greater than
+S&P 500 on a given day
+- Track portfolio performance over time
+- Compare results to simply holding the S&P 500
+
+### Define the Trading Rule
+ We create a binary investment signal:
+ - 1(Invest in NVIDIA) -> If daily_return_nvda > daily_return_sp500.
+ - 0(Stay in cash) -> Otherwise.
+```{r}
+# adding  atrading signal column (1 - invest, 0 = no investment)
+stock_data <- stock_data %>%
+  mutate(trade_signal = ifelse(daily_return_nvda > daily_return_sp500, 1, 0))
+# Check
+head(stock_data)
+
+
+```
+This identifies the dqays when we invest in NVIDIA.
+
+### Calculating portfolio returns
+
+We assume an equally weighted long-only portfolio and calculate cumulative returns.
+```{r}
+# Compute portfolio returns
+stock_data <- stock_data %>%
+  mutate(portfolio_return = trade_signal * daily_return_nvda)
+
+# Compute cumulative returns
+stock_data <- stock_data %>%
+  mutate(cumulative_portfolio = cumprod(1 + portfolio_return),
+         cumulative_sp500 = cumprod(1 + daily_return_sp500))
+
+# Check
+tail(stock_data)
+
+```
+This tracks how our trading strategy performs compared to the S&P 500.
+
+### Visualizing performance
+```{r compare NVIDIA stategy to S&P 500 over time}
+
+ggplot(stock_data, aes(x = Date)) +
+  geom_line(aes(y = cumulative_portfolio, color = "NVIDIA Strategy"), size = 1) +
+  geom_line(aes(y = cumulative_sp500, color = "S&P 500 Benchmark"), size = 1) +
+  labs(title = "Cumulative Return: NVIDIA Strategy vs S&P 500",
+       x = "Date", y = "Cumulative Return") +
+  scale_color_manual(values = c("NVIDIA Strategy" = "blue", "S&P 500 Benchmark" = "red")) +
+  theme_gray()
+  
+```
+
+
+### Evaluating Strategy Performance
+We compare:
+- Average daily return of our strategy vs S&P 500
+- Standard deviation (risk)
+- Sharpe Ratio(risk-adjusted return)
+ 
+```{r}
+# Computing summary statistics 
+strategy_mean_return <- mean(stock_data$portfolio_return, na.rm = TRUE)
+sp500_mean_return <- mean(stock_data$daily_return_sp500, na.rm = TRUE)
+
+strategy_sd <- sd(stock_data$portfolio_return, na.rm = TRUE)
+sp500_sd <- sd(stock_data$daily_return_sp500, na.rm = TRUE)
+
+strategy_sharpe <- strategy_mean_return / strategy_sd
+sp500_sharpe <- sp500_mean_return / sp500_sd
+
+# Print
+cat("Strategy Mean Return:", strategy_mean_return, "\n")
+cat("S&P 500 Mean Return:", sp500_mean_return, "\n")
+cat("Strategy Sharpe Ratio:", strategy_sharpe, "\n")
+cat("S&P 500 Sharpe Ratio:", sp500_sharpe, "\n")
+
+```
+
+# Conclusion
+This project set out to analyze NVIDIA's sock performance relative to S&P  500
+index and evaluate whether an equally weighted, long-only investment strategy in
+NVIDIA could outperform the benchmark.
+
+Through exploratory data analysis(EDA), return calculations, and statistical
+testing(t-test)we found that:
+
+- NVIDIA consistently outperformed the S&P 500 in terms of average daily returns
+(1.34% vs 0.0659%).
+- A trading strategy that invests in NVIDIA when it beats the S&P 500 achieved 
+higher cumulative returns.
+- Risk-adjusted performance was superior, as reflected in the higher Sharpe
+ratio( 0.592 vs 0.508).
+- However, he strategy exhibited higher volatility,meaning that while returns
+were higher, the fluctuations in price were more significant than those  of the 
+S&P 500. 
+ 
+## Key Takeaways
+- NVIDIA outperformed the S&P 500, making it an attractive stock for active 
+investment.
+- Higher returns come with higher risk, requiring risk management strategies such as
+stop-losses or portfolio diversification.
+- Future research could expand this approach to assess whether NVIDIA's 
+outperformance is consistent or part of a larger market trend.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
