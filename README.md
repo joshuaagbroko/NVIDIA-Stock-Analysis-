@@ -6,10 +6,15 @@ This project analyzes NVIDIA's stock performance and compares it to the S&P 500 
 ## 📊 Key Objectives
 
 ✔ Fetch stock data using Python (yfinance) and integrate with R using reticulate.
+
 ✔ Perform Exploratory Data Analysis (EDA) to understand stock trends, volatility, and returns.
+
 ✔ Calculate daily returns and compare NVIDIA to the S&P 500.
+
 ✔ Conduct a t-test to evaluate if NVIDIA significantly outperforms the index.
+
 ✔ Implement a simple trading strategy that invests in NVIDIA only when it beats the S&P 500.
+
 ✔ Compare cumulative returns and risk-adjusted performance (Sharpe Ratio).
 
 ## 📂 Project Structure
@@ -42,14 +47,19 @@ This project set out to analyze NVIDIA's stock performance relative to the S&P 5
 Through exploratory data analysis (EDA), return calculations, and statistical testing (t-test), we found that:
 
 1️⃣ NVIDIA consistently outperformed the S&P 500 in terms of average daily returns (1.34% vs. 0.0659%).
+
 2️⃣ A trading strategy that invests in NVIDIA when it beats the S&P 500 achieved higher cumulative returns.
+
 3️⃣ Risk-adjusted performance was superior, as reflected in the higher Sharpe Ratio (0.592 vs. 0.508).
+
 4️⃣ However, the strategy exhibited higher volatility, meaning that while returns were higher, the fluctuations in price were more significant than those of the S&P 500.
 
 ## 📌 Final Takeaways
 
 ✅ Yes, NVIDIA outperformed the S&P 500, making it an attractive stock for active investment.
+
 ⚠️ Higher returns came with higher risk, requiring risk management strategies such as stop-losses or portfolio diversification.
+
 📊 Future research could expand this approach to other stocks to assess whether NVIDIA’s outperformance is consistent or part of a larger market trend.
 
 ## 📌 Key Decision
@@ -59,7 +69,9 @@ Through exploratory data analysis (EDA), return calculations, and statistical te
 ## 📌 Future Improvements
 
 🔹 Implement stop-loss & take-profit rules for better risk management.
+
 🔹 Use rolling moving averages to refine entry points.
+
 🔹 Expand the analysis to include other tech stocks (AMD, Intel, etc.).
 
 ## 📜 License
